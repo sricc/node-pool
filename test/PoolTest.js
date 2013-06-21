@@ -12,7 +12,7 @@ describe('Pool', function() {
         var db = new Db();
         db.createConnection(callback);
       },
-      remove  : function(client, callback) { 
+      destroy  : function(client, callback) { 
         client.end(callback);
       },
       min     : 2,
@@ -28,20 +28,20 @@ describe('Pool', function() {
   }); 
 
   it('should reject with an error if create is not specified', function(done) {
-    Pool({remove: function(callback) { callback(null, true); }}, function(error, pool) {
+    Pool({destroy: function(callback) { callback(null, true); }}, function(error, pool) {
       should.exist(error);
       error.should.be.instanceof(PoolError);
-      error.message.should.equal('Must specify create functions in options');
+      error.message.should.equal("Must specify 'create' function in options");
       should.not.exist(pool);
       done();
     });
   });
 
-  it('should reject with an error if remove is not specified', function(done) {
+  it('should reject with an error if destroy is not specified', function(done) {
     Pool({create: function(callback) { callback(null, true);  }}, function(error, pool) {
       should.exist(error);
       error.should.be.instanceof(PoolError);  
-      error.message.should.equal('Must specify remove functions in options');    
+      error.message.should.equal("Must specify 'destroy' function in options");    
       should.not.exist(pool);
       done();
     });
@@ -50,7 +50,7 @@ describe('Pool', function() {
   it('should return a Pool object', function(done) {
     Pool({
       create: function(callback) { callback(null, true); },
-      remove: function(callback) { callback(null, true); }
+      destroy: function(callback) { callback(null, true); }
     }, function(error, pool) { 
       should.not.exist(error);
       should.exist(pool);
@@ -65,7 +65,7 @@ describe('Pool', function() {
     Pool({
       name:        'Test Pool',
       create:      function(callback) { callback(null, true); },
-      remove:      function(callback) { callback(null, true); },
+      destroy:      function(callback) { callback(null, true); },
       min:         2,
       max:         5,
       idleTimeout: 200
@@ -84,7 +84,7 @@ describe('Pool', function() {
     Pool({
       name:        'Test Pool',
       create:      function(callback) { callback(null, true); },
-      remove:      function(callback) { callback(null, true); },
+      destroy:      function(callback) { callback(null, true); },
       min:         2
     }, function(error, pool) { 
       should.not.exist(error);
@@ -100,7 +100,7 @@ describe('Pool', function() {
       create  : function(callback) { 
         return createClient();
       },
-      remove  : function(client) { 
+      destroy  : function(client) { 
         client.end();
       },
       log   : false
@@ -112,7 +112,7 @@ describe('Pool', function() {
     });
   });
 
-  it('should remove any idle clients from pool', function(done) {
+  it('should destroy any idle clients from pool', function(done) {
     var idlePool, client1, client2, client3;
     async.series({
       pool: function(callback) {
@@ -122,7 +122,7 @@ describe('Pool', function() {
             var db = new Db();
             db.createConnection(callback);
           },
-          remove  : function(client, callback) { 
+          destroy  : function(client, callback) { 
             client.end(callback);
           },
           min:         2,
