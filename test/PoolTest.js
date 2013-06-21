@@ -31,6 +31,7 @@ describe('Pool', function() {
     Pool({remove: function(callback) { callback(null, true); }}, function(error, pool) {
       should.exist(error);
       error.should.be.instanceof(PoolError);
+      error.message.should.equal('Must specify create functions in options');
       should.not.exist(pool);
       done();
     });
@@ -39,7 +40,8 @@ describe('Pool', function() {
   it('should reject with an error if remove is not specified', function(done) {
     Pool({create: function(callback) { callback(null, true);  }}, function(error, pool) {
       should.exist(error);
-      error.should.be.instanceof(PoolError);      
+      error.should.be.instanceof(PoolError);  
+      error.message.should.equal('Must specify remove functions in options');    
       should.not.exist(pool);
       done();
     });
