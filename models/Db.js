@@ -1,7 +1,7 @@
-
+// Mock DB client
 function Client() {
   this.connect = function(callback) {
-    return callback(null, true);
+    return callback(null, this);
   };
 
   this.end = function(callback) {
@@ -10,7 +10,8 @@ function Client() {
 }
 
 module.exports = function() {
-  this.createConnection = function() {
-    return new Client();
+  this.createConnection = function(callback) {
+    var client = new Client();
+    client.connect(callback);
   };
 }

@@ -1,76 +1,95 @@
-var db     = require('./Db');
-var should = require('should');
-
-var createClient = function() {
-  var client = db.createConnection();
-
-  client.connect();
-
-  return Q.resolve(client);
-}
+var should    = require('should');
+var Db        = require('../models/Db');
+var Pool      = require('../lib/Pool');
+var PoolError = require('../lib/PoolError');
+var async     = require('async');
 
 describe('Pool', function() {
   before(function(done) {
     Pool({
       name  : 'Test Pool',
-      create  : function() { 
-        return createClient();
+      create  : function(callback) { 
+        var db = new Db();
+        db.createConnection(callback);
       },
-      remove  : function(client) { 
-        client.end();
+      remove  : function(client, callback) { 
+        client.end(callback);
       },
       min     : 2,
       max     : 5,
       idleTimeout : 200,
       log     : false
-    }).then(function(pool) {
+    }, function(error, pool) {
+      if (error) throw error;
+
       mainPool = pool;
       done();
-    }).fail(function(error) {
-      throw error;
-    }).done();
+    });
   }); 
 
   it('should reject with an error if create is not specified', function(done) {
-    Pool({remove: function() { return; }})
-      .then(function(result) {
-        throw new Error('Should not return a result');
-      })
-      .fail(function(error) {
-        error.should.be.instanceof(app.ERRORS.Pool);
-        done();
-      }).done();
+    Pool({remove: function(callback) { callback(null, true); }}, function(error, pool) {
+      should.exist(error);
+      error.should.be.instanceof(PoolError);
+      should.not.exist(pool);
+      done();
+    });
   });
 
   it('should reject with an error if remove is not specified', function(done) {
-    Pool({create: function() { return; }})
-      .then(function(result) {
-        result.should.not.exist;
-      })
-      .fail(function(error) {
-        error.should.be.instanceof(app.ERRORS.Pool);
-        done();
-      }).done();
+    Pool({create: function(callback) { callback(null, true);  }}, function(error, pool) {
+      should.exist(error);
+      error.should.be.instanceof(PoolError);      
+      should.not.exist(pool);
+      done();
+    });
   });
 
   it('should return a Pool object', function(done) {
-    mainPool.should.instanceof(Object);
-    mainPool.acquire.should.exist;
-    mainPool.release.should.exist;
-    done();
+    Pool({
+      create: function(callback) { callback(null, true); },
+      remove: function(callback) { callback(null, true); }
+    }, function(error, pool) { 
+      should.not.exist(error);
+      should.exist(pool);
+      pool.should.instanceof(Object);
+      should.exist(pool.acquire);
+      should.exist(pool.release);
+      done();
+    });
   });
 
   it('should set the options correctly', function(done) {
-    mainPool._name.should.equal('Test Pool');
-    mainPool._min.should.equal(2);
-    mainPool._max.should.equal(5);
-    mainPool._idleTimeout.should.equal(200);
-    done();
+    Pool({
+      name:        'Test Pool',
+      create:      function(callback) { callback(null, true); },
+      remove:      function(callback) { callback(null, true); },
+      min:         2,
+      max:         5,
+      idleTimeout: 200
+    }, function(error, pool) {
+      should.not.exist(error);
+      should.exist(pool);
+      pool._name.should.equal('Test Pool');
+      pool._min.should.equal(2);
+      pool._max.should.equal(5);
+      pool._idleTimeout.should.equal(200);
+      done();
+    });
   });
 
   it('should create minimum clients when min is set in options', function(done) {
-    mainPool.availableCount().should.equal(2);
-    done();
+    Pool({
+      name:        'Test Pool',
+      create:      function(callback) { callback(null, true); },
+      remove:      function(callback) { callback(null, true); },
+      min:         2
+    }, function(error, pool) { 
+      should.not.exist(error);
+      should.exist(pool);
+      pool.availableCount().should.equal(2);
+      done();
+    });
   });
 
   it('should not create any clients if min is not set in options', function(done) {
@@ -83,189 +102,176 @@ describe('Pool', function() {
         client.end();
       },
       log   : false
-    }).then(function(pool) {
-        pool.availableCount().should.equal(0);
+    }, function(error, pool) {
+      should.not.exist(error);
+      should.exist(pool);
+      pool.availableCount().should.equal(0);
       done();
-    }).fail(function(error) {
-      throw error;
-    }).done();
+    });
   });
 
-  
   it('should remove any idle clients from pool', function(done) {
     var idlePool, client1, client2, client3;
-    Pool({
-      name  : 'Test Pool',
-      create  : function(callback) { 
-        return createClient();
-      },
-      remove  : function(client) { 
-        client.end();
-      },
-      min     : 2,
-      idleTimeout : 200,
-      log     : false
-    }).then(function(pool) {  
-      idlePool = pool;
-      return idlePool.acquire();
-    }).then(function(client) {
-      client1 = client;
-      return idlePool.acquire();
-    }).then(function(client) {
-      client2 = client;
-      return idlePool.acquire();
-    }).then(function(client) {
-      client3 = client;
-      return idlePool.acquire();
-    }).then(function(client) {
-      idlePool.release(client1);
-      idlePool.release(client2);
-      idlePool.release(client3);
-      idlePool.release(client);
-      setTimeout(function(id) {
-        idlePool.totalCount().should.equal(0);
-        idlePool.availableCount().should.equal(0);
-        idlePool.activeCount().should.equal(0);
-
-        clearTimeout(id);
-        done();
-      }, 2000);
-    }).fail(function(error) {
-      throw error;
-    }).done();
+    async.series({
+      pool: function(callback) {
+        Pool({
+          name:   'Test Pool',
+          create: function(callback) { 
+            var db = new Db();
+            db.createConnection(callback);
+          },
+          remove  : function(client, callback) { 
+            client.end(callback);
+          },
+          min:         2,
+          idleTimeout: 200,
+          log:         false
+        }, callback);
+      }
+    }, 
+    function(error, results) {
+        var pool = results.pool;
+        async.parallel({
+          client1: function(callback) { pool.acquire(callback); },
+          client2: function(callback) { pool.acquire(callback); },
+          client3: function(callback) { pool.acquire(callback); },
+          client4: function(callback) { pool.acquire(callback); },
+        }, 
+        function(error, results) {
+          pool.release(results.client1);
+          pool.release(results.client2);
+          pool.release(results.client3);
+          pool.release(results.client4);
+          setTimeout(function(id) {
+            pool.totalCount().should.equal(0);
+            pool.availableCount().should.equal(0);
+            pool.activeCount().should.equal(0);
+            clearTimeout(id);
+            done();
+          }, 2000);
+        });
+      });
   });
 
   describe('drainNow()', function() {
     it('should drain all clients regardless of state', function(done) {
-      mainPool.acquire().then(function() {
-          return mainPool.acquire();
-        }).then(function(client) {
-          return mainPool.acquire();
-        }).then(function(client) {
-          return mainPool.drainNow();
-        }).then(function() {
+      async.parallel([
+        function(callback) { mainPool.acquire(callback); },
+        function(callback) { mainPool.acquire(callback); },
+        function(callback) { mainPool.acquire(callback); },
+        function(callback) { mainPool.acquire(callback); },
+      ], function(error, results) {
+        mainPool.totalCount().should.equal(4);
+        mainPool.availableCount().should.equal(0);
+        mainPool.activeCount().should.equal(4);
+        mainPool.drainNow(function() {
           mainPool.totalCount().should.equal(0);
           mainPool.availableCount().should.equal(0);
           mainPool.activeCount().should.equal(0);
           done();
-        }).fail(function(error) {
-          throw error;
-        }).done();
+        });
+      });
     });
   });
 
   describe('acquire()', function() {
-    it('should get a new client from pool when available', function(done) {
-      mainPool.drainNow()
-        .then(function() {
-          return mainPool.acquire();
-        })
-        .then(function(client) {
-          client.should.exist;
+    context('when clients are available', function() {
+      it('should get a new client from pool', function(done) {
+        async.series({
+          drained: function(callback) { mainPool.drainNow(callback) },
+          client:  function(callback) { mainPool.acquire(callback) },
+        }, function(error, results) {
+          should.not.exist(error);
+          should.exist(results.client);
           mainPool.totalCount().should.equal(1);
           mainPool.availableCount().should.equal(0);
           mainPool.activeCount().should.equal(1);
           done();
-        }).fail(function(error) {
-          throw error;
-        }).done();
+        });
+      });
     });
 
-    it('should create a new client when none are available in the pool', function(done) {
-      mainPool.drainNow()
-        .then(function() {
-          return mainPool.acquire();
-        })
-        .then(function(client) {
-          client.should.exist;
+    context('when no clients are available', function() {
+      it('should create a new client', function(done) {
+        async.series({
+          drained: function(callback) { mainPool.drainNow(callback) },
+          client:  function(callback) { mainPool.acquire(callback) },
+        }, function(error, results) {
+          should.not.exist(error);
+          should.exist(results.client);
+          results.client.should.exist;
           mainPool.totalCount().should.equal(1);
           mainPool.availableCount().should.equal(0);
           mainPool.activeCount().should.equal(1);
-          
-          return mainPool.acquire();
-        })
-        .then(function(client) {
-          client.should.exist;
-          mainPool.totalCount().should.equal(2);
-          mainPool.availableCount().should.equal(0);
-          mainPool.activeCount().should.equal(2);
-          done();
-        })
-        .fail(function(error) {
-          throw error;
-        }).done();
+
+          mainPool.acquire(function(error, client) {
+            should.not.exist(error);
+            should.exist(client);
+            mainPool.totalCount().should.equal(2);
+            mainPool.availableCount().should.equal(0);
+            mainPool.activeCount().should.equal(2);
+            done();
+          });
+        });
+      });
     });
 
     it('should respect the max connections', function(done) {
-      mainPool.drainNow()
-        .then(function() {
-          return mainPool.acquire();
-        })
-        .then(function(client) {          
-          return mainPool.acquire();
-        })
-        .then(function(client) {          
-          return mainPool.acquire();
-        })
-        .then(function(client) {          
-          return mainPool.acquire();
-        })
-        .then(function(client) {          
-          return mainPool.acquire();
-        })
-        .then(function(client) {
-          client.should.exist;
+      async.series({
+        drained: function(callback) { mainPool.drainNow(callback) },
+        client1: function(callback) { mainPool.acquire(callback) },
+        client2: function(callback) { mainPool.acquire(callback) },
+        client3: function(callback) { mainPool.acquire(callback) },
+        client4: function(callback) { mainPool.acquire(callback) },
+        client5: function(callback) { mainPool.acquire(callback) }
+      }, function(error, results) {
+        should.not.exist(error);
+        should.exist(results);
+        mainPool.totalCount().should.equal(5);
+        mainPool.availableCount().should.equal(0);
+        mainPool.activeCount().should.equal(5);
+
+        mainPool.acquire(function(error, client) {
+          should.not.exist(error);
           mainPool.totalCount().should.equal(5);
           mainPool.availableCount().should.equal(0);
           mainPool.activeCount().should.equal(5);
-          
-          mainPool.acquire().then(function(client) {
-            mainPool.totalCount().should.equal(5);
-            mainPool.availableCount().should.equal(0);
-            mainPool.activeCount().should.equal(5);
-            mainPool.waitingCount().should.equal(0);
-            done();
-          }).fail(function(error) {
-            throw error;
-          }).done();
+          mainPool.waitingCount().should.equal(0);  
+          done();       
+        });
 
-          mainPool.totalCount().should.equal(5);
-          mainPool.availableCount().should.equal(0);
-          mainPool.activeCount().should.equal(5);
-          mainPool.waitingCount().should.equal(1);
-
-          mainPool.release(client);
-        })
-        .fail(function(error) {
-          throw error;
-        }).done();
+        mainPool.totalCount().should.equal(5);
+        mainPool.availableCount().should.equal(0);
+        mainPool.activeCount().should.equal(5);
+        mainPool.waitingCount().should.equal(1);
+        mainPool.release(results.client1, function() {});
+      });
     });
   });
 
   describe('release()', function() {
     it('should release the client back to the pool', function(done) {
-      mainPool.drainNow()
-        .then(function() {
-          return mainPool.acquire();
-        })
-        .then(function(client) {
-          client.should.exist;
-          mainPool.totalCount().should.equal(1);
-          mainPool.availableCount().should.equal(0);
-          mainPool.activeCount().should.equal(1);
-          
-          mainPool.release(client);
-          mainPool.totalCount().should.equal(1);
-          mainPool.availableCount().should.equal(1);
-          mainPool.activeCount().should.equal(0);
-          done();
-        }).fail(function(error) {
-          throw error;
-        }).done();
+      async.series({
+        drained: function(callback) { mainPool.drainNow(callback) },
+        client: function(callback) { mainPool.acquire(callback) }
+      }, function(error, results) {
+        should.not.exist(error);
+        should.exist(results);
+        should.exist(results.client);
+        mainPool.totalCount().should.equal(1);
+        mainPool.availableCount().should.equal(0);
+        mainPool.activeCount().should.equal(1);
+        
+        mainPool.release(results.client);
+        mainPool.totalCount().should.equal(1);
+        mainPool.availableCount().should.equal(1);
+        mainPool.activeCount().should.equal(0);
+        done();
+      });
     });
   });
 
-  after(function() {
-    
+  after(function(done) {
+    done();
   });
 });
