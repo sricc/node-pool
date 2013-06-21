@@ -1,5 +1,5 @@
 {
-  "name": "node-pool",
+  "name": "node-pool-monkey",
   "version": "0.0.0",
   "description": "A generic pool for Node.js applications",
   "main": "index.js",
