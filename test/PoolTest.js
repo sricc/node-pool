@@ -161,15 +161,17 @@ describe('Pool', function() {
         function(callback) { mainPool.acquire(callback); },
         function(callback) { mainPool.acquire(callback); },
         function(callback) { mainPool.acquire(callback); },
-        function(callback) { mainPool.acquire(callback); },
+        function(callback) { mainPool.acquire(callback); }
       ], function(error, results) {
         mainPool.totalCount().should.equal(4);
         mainPool.availableCount().should.equal(0);
         mainPool.activeCount().should.equal(4);
+        mainPool.waitingCount().should.equal(0);
         mainPool.drain(function() {
           mainPool.totalCount().should.equal(0);
           mainPool.availableCount().should.equal(0);
           mainPool.activeCount().should.equal(0);
+          mainPool.waitingCount().should.equal(0);
           done();
         });
       });
