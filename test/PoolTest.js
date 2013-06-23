@@ -155,7 +155,7 @@ describe('Pool', function() {
       });
   });
 
-  describe('drainNow()', function() {
+  describe('drain()', function() {
     it('should drain all clients regardless of state', function(done) {
       async.parallel([
         function(callback) { mainPool.acquire(callback); },
@@ -166,7 +166,7 @@ describe('Pool', function() {
         mainPool.totalCount().should.equal(4);
         mainPool.availableCount().should.equal(0);
         mainPool.activeCount().should.equal(4);
-        mainPool.drainNow(function() {
+        mainPool.drain(function() {
           mainPool.totalCount().should.equal(0);
           mainPool.availableCount().should.equal(0);
           mainPool.activeCount().should.equal(0);
@@ -180,7 +180,7 @@ describe('Pool', function() {
     context('when clients are available', function() {
       it('should get a new client from pool', function(done) {
         async.series({
-          drained: function(callback) { mainPool.drainNow(callback) },
+          drained: function(callback) { mainPool.drain(callback) },
           client:  function(callback) { mainPool.acquire(callback) },
         }, function(error, results) {
           should.not.exist(error);
@@ -196,7 +196,7 @@ describe('Pool', function() {
     context('when no clients are available', function() {
       it('should create a new client', function(done) {
         async.series({
-          drained: function(callback) { mainPool.drainNow(callback) },
+          drained: function(callback) { mainPool.drain(callback) },
           client:  function(callback) { mainPool.acquire(callback) },
         }, function(error, results) {
           should.not.exist(error);
@@ -220,7 +220,7 @@ describe('Pool', function() {
 
     it('should respect the max connections', function(done) {
       async.series({
-        drained: function(callback) { mainPool.drainNow(callback) },
+        drained: function(callback) { mainPool.drain(callback) },
         client1: function(callback) { mainPool.acquire(callback) },
         client2: function(callback) { mainPool.acquire(callback) },
         client3: function(callback) { mainPool.acquire(callback) },
@@ -254,7 +254,7 @@ describe('Pool', function() {
   describe('release()', function() {
     it('should release the client back to the pool', function(done) {
       async.series({
-        drained: function(callback) { mainPool.drainNow(callback) },
+        drained: function(callback) { mainPool.drain(callback) },
         client: function(callback) { mainPool.acquire(callback) }
       }, function(error, results) {
         should.not.exist(error);
